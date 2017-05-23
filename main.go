@@ -146,12 +146,14 @@ func downloadAndSavePhoto(url, filePath, fileName string) {
 	cleanFileName := sanitize.Path(fileName)
 	file, err := os.Create(fmt.Sprintf("%s/%s%s", filePath, cleanFileName, fileSuffix))
 	if err != nil {
-		mainlogger.Fatalln(err)
+		mainlogger.Println(err)
+		return
 	}
 	// Use io.Copy to just dump the response body to the file. This supports huge files
 	_, err = io.Copy(file, resp.Body)
 	if err != nil {
-		mainlogger.Fatalln(err)
+		mainlogger.Println(err)
+		return
 	}
 	file.Close()
 	fmt.Printf("Download complete: %s\n", fileName)
