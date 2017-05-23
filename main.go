@@ -21,11 +21,13 @@ type Content struct {
 
 var username = ""
 var key = ""
+var routines = 20
 var mainlogger = log.New(os.Stderr, "[main] ", log.Ltime|log.Lshortfile)
 
 func main() {
 	flag.StringVar(&key, "key", "", "API Key")
 	flag.StringVar(&username, "u", "", "username from which the dump is happening")
+	flag.IntVar(&routines, "n", routines, "number of concurrent downloads")
 	flag.Parse()
 
 	uid, e := getUserIDByUsername(username)
@@ -38,9 +40,7 @@ func main() {
 	}
 
 	for _, a := range albums {
-		fmt.Println("============================================================================")
-		fmt.Printf("    Downloading %s\n", a.Title)
-		fmt.Println("----------------------------------------------------------------------------")
+		fmt.Printf("Downloading %s\n", a.Title)
 		downloadAlbum(a, uid)
 	}
 
@@ -102,17 +102,45 @@ func downloadAlbum(a Album, userID string) error {
 		os.Mkdir(filePath, 0700)
 	}
 
+	// Progress bar
+	total := len(psr.Set.Photos)
+	progressCh := make(chan struct{})
+	abortCh := make(chan struct{})
+	go func(total int) {
+		i := 0
+		for {
+			select {
+			case <-progressCh:
+				i++
+				fmt.Printf("\r    Progress: %d/%d", i, total)
+				if i == total {
+					fmt.Println()
+				}
+
+			case <-abortCh:
+				return
+			}
+		}
+	}(total)
+
 	var wg sync.WaitGroup
+	runningCh := make(chan struct{}, routines)
 	for _, p := range psr.Set.Photos {
 		wg.Add(1)
 		go func(photoID, fp, fn string) {
-			defer wg.Done()
+			runningCh <- struct{}{}
+			defer func() {
+				wg.Done()
+				<-runningCh
+				progressCh <- struct{}{}
+			}()
 			url := getDownloadLink(photoID)
 			downloadAndSavePhoto(url, fp, fn)
 		}(p.ID, filePath, p.Title)
 
 	}
 	wg.Wait()
+	abortCh <- struct{}{}
 	return nil
 }
 
@@ -134,7 +162,19 @@ func getDownloadLink(photoID string) string {
 }
 
 func downloadAndSavePhoto(url, filePath, fileName string) {
+	//open a file for writing
+	cleanFileName := sanitize.Path(fileName)
 	fileSuffix := path.Ext(url)
+	path := fmt.Sprintf("%s/%s%s", filePath, cleanFileName, fileSuffix)
+	if _, err := os.Stat(path); err == nil {
+		//mainlogger.Printf("file %s already exist, skipping...\n", fileName)
+		return
+	}
+	file, err := os.Create(path)
+	if err != nil {
+		mainlogger.Println(err)
+		return
+	}
 	resp, e := http.Get(url)
 	if e != nil {
 		mainlogger.Printf("Cannot download photo %s: %s\n", fileName, e.Error())
@@ -142,13 +182,6 @@ func downloadAndSavePhoto(url, filePath, fileName string) {
 	}
 	defer resp.Body.Close()
 
-	//open a file for writing
-	cleanFileName := sanitize.Path(fileName)
-	file, err := os.Create(fmt.Sprintf("%s/%s%s", filePath, cleanFileName, fileSuffix))
-	if err != nil {
-		mainlogger.Println(err)
-		return
-	}
 	// Use io.Copy to just dump the response body to the file. This supports huge files
 	_, err = io.Copy(file, resp.Body)
 	if err != nil {
@@ -156,6 +189,6 @@ func downloadAndSavePhoto(url, filePath, fileName string) {
 		return
 	}
 	file.Close()
-	fmt.Printf("Download complete: %s\n", fileName)
+	//fmt.Printf("Download complete: %s\n", fileName)
 
 }
