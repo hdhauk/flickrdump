@@ -10,7 +10,6 @@ import (
 	"os"
 	"path"
 	"strings"
-	"sync"
 
 	"github.com/kennygrant/sanitize"
 )
@@ -80,6 +79,7 @@ func downloadAlbum(a Album, userID string) error {
 	if err != nil {
 		panic(err)
 	}
+	defer lstResp.Body.Close()
 	var psr PhotoSetResp
 	err = json.NewDecoder(lstResp.Body).Decode(&psr)
 	if err != nil {
@@ -105,7 +105,7 @@ func downloadAlbum(a Album, userID string) error {
 	// Progress bar
 	total := len(psr.Set.Photos)
 	progressCh := make(chan struct{})
-	abortCh := make(chan struct{})
+	doneCh := make(chan struct{})
 	go func(total int) {
 		i := 0
 		for {
@@ -115,22 +115,17 @@ func downloadAlbum(a Album, userID string) error {
 				fmt.Printf("\r    Progress: %d/%d", i, total)
 				if i == total {
 					fmt.Println()
+					doneCh <- struct{}{}
 				}
-
-			case <-abortCh:
-				return
 			}
 		}
 	}(total)
 
-	var wg sync.WaitGroup
 	runningCh := make(chan struct{}, routines)
 	for _, p := range psr.Set.Photos {
-		wg.Add(1)
 		go func(photoID, fp, fn string) {
 			runningCh <- struct{}{}
 			defer func() {
-				wg.Done()
 				<-runningCh
 				progressCh <- struct{}{}
 			}()
@@ -139,8 +134,8 @@ func downloadAlbum(a Album, userID string) error {
 		}(p.ID, filePath, p.Title)
 
 	}
-	wg.Wait()
-	abortCh <- struct{}{}
+	<-doneCh
+	fmt.Println()
 	return nil
 }
 
@@ -167,7 +162,7 @@ func downloadAndSavePhoto(url, filePath, fileName string) {
 	fileSuffix := path.Ext(url)
 	path := fmt.Sprintf("%s/%s%s", filePath, cleanFileName, fileSuffix)
 	if _, err := os.Stat(path); err == nil {
-		//mainlogger.Printf("file %s already exist, skipping...\n", fileName)
+		// File already exist
 		return
 	}
 	file, err := os.Create(path)
@@ -177,7 +172,9 @@ func downloadAndSavePhoto(url, filePath, fileName string) {
 	}
 	resp, e := http.Get(url)
 	if e != nil {
-		mainlogger.Printf("Cannot download photo %s: %s\n", fileName, e.Error())
+		file.Close()
+		os.Remove(path)
+		mainlogger.Printf("Failed to download %s: %s\n", fileName, e.Error())
 		return
 	}
 	defer resp.Body.Close()
@@ -185,10 +182,11 @@ func downloadAndSavePhoto(url, filePath, fileName string) {
 	// Use io.Copy to just dump the response body to the file. This supports huge files
 	_, err = io.Copy(file, resp.Body)
 	if err != nil {
-		mainlogger.Println(err)
+		mainlogger.Printf("Failed to extract %s: %s", fileName, err.Error())
+		file.Close()
+		os.Remove(path)
 		return
 	}
 	file.Close()
-	//fmt.Printf("Download complete: %s\n", fileName)
 
 }
