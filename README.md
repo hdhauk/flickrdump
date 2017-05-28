@@ -8,12 +8,12 @@ go get -u github.com/hdhauk/flickrdump
 ```
 or if you don't have Go installed simply download the correct binary
 * Windows
- * [64-bit](./bin/flickrdump_windows_amd64)
- * [32-bit](./bin/flickrdump_windows_386)
+  * [64-bit](./bin/flickrdump_windows_amd64)
+  * [32-bit](./bin/flickrdump_windows_386)
 * [MacOS](./bin/flickrdump_darwin_amd64)
 * Linux
   * [64-bit](./bin/flickrdump_linux_amd64)
-  * [32-bit](./bin/flickrdump_linux_386)
+  * [32-bit](./bin/flickrdump_linux386)
 
 You will also need a Flickr API key [here](https://www.flickr.com/services/api/misc.api_keys.html).
 
