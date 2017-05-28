@@ -10,6 +10,7 @@ import (
 	"os"
 	"path"
 	"strings"
+	"sync"
 
 	"github.com/kennygrant/sanitize"
 )
@@ -20,7 +21,7 @@ type Content struct {
 
 var username = ""
 var key = ""
-var routines = 20
+var routines = 4
 var mainlogger = log.New(os.Stderr, "[main] ", log.Ltime|log.Lshortfile)
 
 func main() {
@@ -104,89 +105,109 @@ func downloadAlbum(a Album, userID string) error {
 
 	// Progress bar
 	total := len(psr.Set.Photos)
-	progressCh := make(chan struct{})
-	doneCh := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Add(total)
+	progressCh := make(chan int)
+	printSummaryCh := make(chan int)
+	summaryDoneCh := make(chan int)
+	errorCh := make(chan error, total)
+	skippedCh := make(chan string, total)
+	sem := make(chan int, routines)
 	go func(total int) {
 		i := 0
 		for {
 			select {
 			case <-progressCh:
 				i++
-				fmt.Printf("\r    Progress: %d/%d", i, total)
-				if i == total {
-					fmt.Println()
-					doneCh <- struct{}{}
+				fmt.Printf("\r--> Processing: %d/%d", i, total)
+			case <-printSummaryCh:
+				fmt.Printf("\n--> Done: %d/%d (%d skipped)\tFailed:%d\n", i, total, len(skippedCh), len(errorCh))
+				for e := range errorCh {
+					fmt.Println(e)
 				}
+				fmt.Println()
+				summaryDoneCh <- 1
+				return
 			}
 		}
 	}(total)
 
-	runningCh := make(chan struct{}, routines)
+	// Spawn workers
 	for _, p := range psr.Set.Photos {
 		go func(photoID, fp, fn string) {
-			runningCh <- struct{}{}
-			defer func() {
-				<-runningCh
-				progressCh <- struct{}{}
-			}()
-			url := getDownloadLink(photoID)
-			downloadAndSavePhoto(url, fp, fn)
+			defer wg.Done()
+			sem <- 1
+			url, err := getDownloadLink(photoID)
+			if err != nil {
+				<-sem
+				errorCh <- fmt.Errorf("%s > %s", photoID, err)
+				return
+			}
+			err, skipped := downloadAndSavePhoto(url, fp, fn)
+			<-sem
+			if skipped {
+				skippedCh <- fn
+				progressCh <- 1
+			} else if err != nil {
+				errorCh <- fmt.Errorf("%s > %s", fn, err)
+			} else {
+				progressCh <- 1
+			}
 		}(p.ID, filePath, p.Title)
-
 	}
-	<-doneCh
-	fmt.Println()
+	wg.Wait()
+	close(errorCh)
+	printSummaryCh <- 1
+	<-summaryDoneCh
+
 	return nil
 }
 
-func getDownloadLink(photoID string) string {
+func getDownloadLink(photoID string) (string, error) {
 	req := fmt.Sprintf("https://api.flickr.com/services/rest/?method=flickr.photos.getSizes&api_key=%s&photo_id=%s&format=json&nojsoncallback=1", key, photoID)
 	resp, err := http.Get(req)
 	if err != nil {
-		panic(err)
+		return "", err
 	}
 	defer resp.Body.Close()
 	var sr SizesResp
 	json.NewDecoder(resp.Body).Decode(&sr)
 	for _, s := range sr.Sizes.Versions {
 		if s.Label == "Original" {
-			return s.Src
+			return s.Src, nil
 		}
 	}
-	return ""
+	return "", fmt.Errorf("unable to find original")
 }
 
-func downloadAndSavePhoto(url, filePath, fileName string) {
+func downloadAndSavePhoto(url, filePath, fileName string) (err error, skipped bool) {
 	//open a file for writing
 	cleanFileName := sanitize.Path(fileName)
 	fileSuffix := path.Ext(url)
 	path := fmt.Sprintf("%s/%s%s", filePath, cleanFileName, fileSuffix)
 	if _, err := os.Stat(path); err == nil {
 		// File already exist
-		return
+		return nil, true
 	}
 	file, err := os.Create(path)
 	if err != nil {
-		mainlogger.Println(err)
-		return
+		return err, false
 	}
 	resp, e := http.Get(url)
 	if e != nil {
 		file.Close()
 		os.Remove(path)
-		mainlogger.Printf("Failed to download %s: %s\n", fileName, e.Error())
-		return
+		return e, false
 	}
 	defer resp.Body.Close()
 
 	// Use io.Copy to just dump the response body to the file. This supports huge files
 	_, err = io.Copy(file, resp.Body)
 	if err != nil {
-		mainlogger.Printf("Failed to extract %s: %s", fileName, err.Error())
 		file.Close()
 		os.Remove(path)
-		return
+		return err, false
 	}
 	file.Close()
-
+	return nil, false
 }
