@@ -7,26 +7,32 @@ import (
 	"strings"
 )
 
+// User is the actual user payload recieved.
 type User struct {
 	ID       string `json:"id"`
 	NSID     string `json:"nsid"`
 	Username Content
 }
 
+// UserResp is the full reponse recieved from the findByUsername endpoint.
 type UserResp struct {
 	User   `json:"user"`
 	Status string `json:"stat"`
 }
 
 func getUserIDByUsername(username string) (string, error) {
+	// Compose API request
 	searchFor := strings.Replace(username, " ", "+", -1)
 	req := fmt.Sprintf("https://api.flickr.com/services/rest/?method=flickr.people.findByUsername&api_key=%s&username=%s&format=json&nojsoncallback=1", key, searchFor)
 
 	resp, err := http.Get(req)
 	if err != nil {
-		mainlogger.Fatalln(err)
+		mainlogger.Println(err)
+		return "", err
 	}
 	defer resp.Body.Close()
+
+	// Decode response
 	var u UserResp
 	err = json.NewDecoder(resp.Body).Decode(&u)
 	if err != nil {

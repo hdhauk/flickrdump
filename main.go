@@ -15,6 +15,8 @@ import (
 	"github.com/kennygrant/sanitize"
 )
 
+// Content is a common object used by the flickr-API. Usually contain a title,
+// description or somthing similar.
 type Content struct {
 	Content string `json:"_content"`
 }
@@ -25,27 +27,30 @@ var routines = 4
 var mainlogger = log.New(os.Stderr, "[main] ", log.Ltime|log.Lshortfile)
 
 func main() {
+	// Parse command line arguments.
 	flag.StringVar(&key, "key", "", "API Key")
 	flag.StringVar(&username, "u", "", "username from which the dump is happening")
 	flag.IntVar(&routines, "n", routines, "number of concurrent downloads")
 	flag.Parse()
 
-	uid, e := getUserIDByUsername(username)
-	if e != nil {
-		mainlogger.Fatalf("unable to get user id for user %s: %s\n", username, e.Error())
-	}
-	albums, e := getAlbumsByUser(uid)
-	if e != nil {
-		mainlogger.Fatalf("unable to get albums : %s\n", e.Error())
+	userID, err := getUserIDByUsername(username)
+	if err != nil {
+		mainlogger.Fatalf("unable to get user id for user %s: %s\n", username, err.Error())
 	}
 
-	for _, a := range albums {
-		fmt.Printf("Downloading %s\n", a.Title)
-		downloadAlbum(a, uid)
+	albums, err := getAlbumsByUser(userID)
+	if err != nil {
+		mainlogger.Fatalf("unable to get albums : %s\n", err.Error())
+	}
+
+	for _, album := range albums {
+		fmt.Printf("Downloading %s\n", album.Title)
+		downloadAlbum(album, userID)
 	}
 
 }
 
+// PhotoSetResp is the full response received from the photoset.getPhotos endpoint.
 type PhotoSetResp struct {
 	Set    PhotoSet `json:"photoset"`
 	Status string   `json:"stat"`
@@ -73,55 +78,59 @@ type Size struct {
 }
 
 func downloadAlbum(a Album, userID string) error {
-	userID = strings.Replace(userID, "@", "%40", -1)
-	lstReq := fmt.Sprintf("https://api.flickr.com/services/rest/?method=flickr.photosets.getPhotos&api_key=%s&photoset_id=%s&user_id=%s&format=json&nojsoncallback=1", key, a.ID, userID)
+	// Compose photolist request
+	modifiedUID := strings.Replace(userID, "@", "%40", -1)
+	lstReq := fmt.Sprintf("https://api.flickr.com/services/rest/?method=flickr.photosets.getPhotos&api_key=%s&photoset_id=%s&user_id=%s&format=json&nojsoncallback=1", key, a.ID, modifiedUID)
 
+	// Fetch list of all photos in album.
 	lstResp, err := http.Get(lstReq)
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("failed to fetch photo list from flickr.photosets.getPhotos: %s", err.Error())
 	}
 	defer lstResp.Body.Close()
+
+	// Decode photolist
 	var psr PhotoSetResp
 	err = json.NewDecoder(lstResp.Body).Decode(&psr)
 	if err != nil {
-		return err
+		return fmt.Errorf("unable to decode response from flickr.photosets.getPhotos: %s", err.Error())
 	}
 	if psr.Status != "ok" {
-		return fmt.Errorf("unable to get albums photos")
+		return fmt.Errorf("response returned non-ok status: %s", psr.Status)
 	}
 
-	// Create filePath
-	dir, err := os.Getwd()
+	// Create a valid filepath, and create new folder if it doesn't exist.
+	workingDir, err := os.Getwd()
 	if err != nil {
-		fmt.Println(dir)
-		mainlogger.Fatal(err)
+		return err
 	}
-	folderName := strings.Replace(a.Title.Content, "/", "_", -1)
-	filePath := fmt.Sprintf("%s/%s", dir, folderName)
-
+	folderName := sanitize.BaseName(a.Title.Content)
+	filePath := fmt.Sprintf("%s/%s", workingDir, folderName)
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
 		os.Mkdir(filePath, 0700)
 	}
 
-	// Progress bar
-	total := len(psr.Set.Photos)
+	// Set up communication
+	total := len(psr.Set.Photos) // number of photos in album
 	var wg sync.WaitGroup
 	wg.Add(total)
-	progressCh := make(chan int)
-	printSummaryCh := make(chan int)
-	summaryDoneCh := make(chan int)
-	errorCh := make(chan error, total)
-	skippedCh := make(chan string, total)
-	sem := make(chan int, routines)
-	go func(total int) {
-		i := 0
+	progressCh := make(chan int)          // communicate to progress monitor fetch succeeded
+	skippedCh := make(chan string, total) // communicate to progress monitor fetch skipped
+	errorCh := make(chan error, total)    // communicate to progress monitor fetch failed
+	printSummaryCh := make(chan int)      // communicate to progress monitor to print summary
+	summaryDoneCh := make(chan int)       // communicate from progress monitor that summary is done and goroutine ends
+	sem := make(chan int, routines)       // semaphore limiting number of workers
+
+	// Spawn progress monitor
+	go func(numTotal int) {
+		numDone := 0
 		for {
 			select {
 			case <-progressCh:
-				i++
-				fmt.Printf("\r--> Processing: %d/%d", i, total)
+				numDone++
+				fmt.Printf("\r--> Processing: %d/%d", numDone, numTotal)
 			case <-printSummaryCh:
-				fmt.Printf("\n--> Done: %d/%d (%d skipped)\tFailed:%d\n", i, total, len(skippedCh), len(errorCh))
+				fmt.Printf("\n--> Done: %d/%d (%d skipped)\tFailed:%d\n", numDone, numTotal, len(skippedCh), len(errorCh))
 				for e := range errorCh {
 					fmt.Println(e)
 				}
@@ -143,7 +152,7 @@ func downloadAlbum(a Album, userID string) error {
 				errorCh <- fmt.Errorf("%s > %s", photoID, err)
 				return
 			}
-			err, skipped := downloadAndSavePhoto(url, fp, fn)
+			skipped, err := downloadAndSavePhoto(url, fp, fn)
 			<-sem
 			if skipped {
 				skippedCh <- fn
@@ -155,11 +164,14 @@ func downloadAlbum(a Album, userID string) error {
 			}
 		}(p.ID, filePath, p.Title)
 	}
+
+	// Wait for all workers to complete
 	wg.Wait()
 	close(errorCh)
+
+	// Print summary before quitting
 	printSummaryCh <- 1
 	<-summaryDoneCh
-
 	return nil
 }
 
@@ -180,34 +192,38 @@ func getDownloadLink(photoID string) (string, error) {
 	return "", fmt.Errorf("unable to find original")
 }
 
-func downloadAndSavePhoto(url, filePath, fileName string) (err error, skipped bool) {
-	//open a file for writing
+func downloadAndSavePhoto(url, filePath, fileName string) (skipped bool, err error) {
+	// Create safe filename with correct suffix.
 	cleanFileName := sanitize.Path(fileName)
 	fileSuffix := path.Ext(url)
 	path := fmt.Sprintf("%s/%s%s", filePath, cleanFileName, fileSuffix)
+
+	// Skip if file already exist.
 	if _, err := os.Stat(path); err == nil {
-		// File already exist
-		return nil, true
+		return true, nil
 	}
+
 	file, err := os.Create(path)
 	if err != nil {
-		return err, false
+		return false, err
 	}
+
+	// Download photo
 	resp, e := http.Get(url)
 	if e != nil {
 		file.Close()
 		os.Remove(path)
-		return e, false
+		return false, e
 	}
 	defer resp.Body.Close()
 
-	// Use io.Copy to just dump the response body to the file. This supports huge files
+	// Copy photo from response to file.
 	_, err = io.Copy(file, resp.Body)
 	if err != nil {
 		file.Close()
 		os.Remove(path)
-		return err, false
+		return false, err
 	}
 	file.Close()
-	return nil, false
+	return false, nil
 }
