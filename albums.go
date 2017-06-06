@@ -13,9 +13,9 @@ type AlbumsResp struct {
 	Status string `json:"stat"`
 }
 
-// Albums is the object holding the album array with its lenght.
+// Albums is the object holding the album array with its length.
 type Albums struct {
-	Lenght int     `json:"total"`
+	Length int     `json:"total"`
 	Sets   []Album `json:"photoset"`
 }
 

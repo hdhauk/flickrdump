@@ -7,14 +7,14 @@ import (
 	"strings"
 )
 
-// User is the actual user payload recieved.
+// User is the actual user payload received.
 type User struct {
 	ID       string `json:"id"`
 	NSID     string `json:"nsid"`
 	Username Content
 }
 
-// UserResp is the full reponse recieved from the findByUsername endpoint.
+// UserResp is the full response received from the findByUsername endpoint.
 type UserResp struct {
 	User   `json:"user"`
 	Status string `json:"stat"`
