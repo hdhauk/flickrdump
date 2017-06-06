@@ -1,3 +1,5 @@
+default:
+	go install .
 crosscompile:
 	env GOOS=linux GOARCH=amd64 go build -o bin/flickrdump_linux_amd64
 	env GOOS=linux GOARCH=386 go build -o bin/flickrdump_linux_386

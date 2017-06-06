@@ -11,8 +11,6 @@ import (
 	"path"
 	"strings"
 	"sync"
-
-	"github.com/kennygrant/sanitize"
 )
 
 // Content is a common object used by the flickr-API. Usually contain a title,
@@ -104,7 +102,7 @@ func downloadAlbum(a Album, userID string) error {
 	if err != nil {
 		return err
 	}
-	folderName := sanitize.BaseName(a.Title.Content)
+	folderName := sanitize(a.Title.Content)
 	filePath := fmt.Sprintf("%s/%s", workingDir, folderName)
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
 		os.Mkdir(filePath, 0700)
@@ -194,7 +192,7 @@ func getDownloadLink(photoID string) (string, error) {
 
 func downloadAndSavePhoto(url, filePath, fileName string) (skipped bool, err error) {
 	// Create safe filename with correct suffix.
-	cleanFileName := sanitize.Path(fileName)
+	cleanFileName := sanitize(fileName)
 	fileSuffix := path.Ext(url)
 	path := fmt.Sprintf("%s/%s%s", filePath, cleanFileName, fileSuffix)
 
@@ -226,4 +224,27 @@ func downloadAndSavePhoto(url, filePath, fileName string) (skipped bool, err err
 	}
 	file.Close()
 	return false, nil
+}
+
+func sanitize(dirty string) string {
+	illegalSubStrings := []struct {
+		Illegal     string
+		ReplaceWith string
+	}{
+		{"/", "-"},
+		{"<", "-"},
+		{">", "-"},
+		{":", "-"},
+		{"\\", "-"},
+		{"|", "-"},
+		{"?", "-"},
+		{"*", "-"},
+	}
+
+	clean := dirty
+	for _, v := range illegalSubStrings {
+		clean = strings.Replace(clean, v.Illegal, v.ReplaceWith, -1)
+	}
+	return clean
+
 }
