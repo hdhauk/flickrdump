@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -31,19 +32,23 @@ func main() {
 	flag.IntVar(&routines, "n", routines, "number of concurrent downloads")
 	flag.Parse()
 
-	userID, err := getUserIDByUsername(username)
+	if username == "" || key == "" {
+		username, key, routines = getUserArgs()
+	}
+
+	userID, err := getUserIDByUsername(username, key)
 	if err != nil {
 		mainlogger.Fatalf("unable to get user id for user %s: %s\n", username, err.Error())
 	}
 
-	albums, err := getAlbumsByUser(userID)
+	albums, err := getAlbumsByUser(userID, key)
 	if err != nil {
 		mainlogger.Fatalf("unable to get albums : %s\n", err.Error())
 	}
 
 	for _, album := range albums {
 		fmt.Printf("Downloading %s\n", album.Title)
-		downloadAlbum(album, userID)
+		downloadAlbum(album, userID, key)
 	}
 
 }
@@ -75,10 +80,10 @@ type Size struct {
 	Src   string `json:"source"`
 }
 
-func downloadAlbum(a Album, userID string) error {
+func downloadAlbum(a Album, userID, APIkey string) error {
 	// Compose photolist request
 	modifiedUID := strings.Replace(userID, "@", "%40", -1)
-	lstReq := fmt.Sprintf("https://api.flickr.com/services/rest/?method=flickr.photosets.getPhotos&api_key=%s&photoset_id=%s&user_id=%s&format=json&nojsoncallback=1", key, a.ID, modifiedUID)
+	lstReq := fmt.Sprintf("https://api.flickr.com/services/rest/?method=flickr.photosets.getPhotos&api_key=%s&photoset_id=%s&user_id=%s&format=json&nojsoncallback=1", APIkey, a.ID, modifiedUID)
 
 	// Fetch list of all photos in album.
 	lstResp, err := http.Get(lstReq)
@@ -144,7 +149,7 @@ func downloadAlbum(a Album, userID string) error {
 		go func(photoID, fp, fn string) {
 			defer wg.Done()
 			sem <- 1
-			url, err := getDownloadLink(photoID)
+			url, err := getDownloadLink(photoID, APIkey)
 			if err != nil {
 				<-sem
 				errorCh <- fmt.Errorf("%s > %s", photoID, err)
@@ -173,8 +178,8 @@ func downloadAlbum(a Album, userID string) error {
 	return nil
 }
 
-func getDownloadLink(photoID string) (string, error) {
-	req := fmt.Sprintf("https://api.flickr.com/services/rest/?method=flickr.photos.getSizes&api_key=%s&photo_id=%s&format=json&nojsoncallback=1", key, photoID)
+func getDownloadLink(photoID, APIkey string) (string, error) {
+	req := fmt.Sprintf("https://api.flickr.com/services/rest/?method=flickr.photos.getSizes&api_key=%s&photo_id=%s&format=json&nojsoncallback=1", APIkey, photoID)
 	resp, err := http.Get(req)
 	if err != nil {
 		return "", err
@@ -247,4 +252,22 @@ func sanitize(dirty string) string {
 	}
 	return clean
 
+}
+
+func getUserArgs() (user, key string, workers int) {
+	reader := bufio.NewReader(os.Stdin)
+
+	fmt.Print("Flickr API key: ")
+	key, _ = reader.ReadString('\n')
+	key = strings.TrimSuffix(key, "\n")
+
+	fmt.Print("Flickr user to download all albums from: ")
+	user, _ = reader.ReadString('\n')
+	user = strings.TrimSuffix(user, "\n")
+
+	fmt.Print("Number of parallell downloads: ")
+	fmt.Scanf("%d", &workers)
+	fmt.Println()
+
+	return
 }

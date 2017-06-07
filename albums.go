@@ -26,10 +26,10 @@ type Album struct {
 	Description Content
 }
 
-func getAlbumsByUser(userID string) ([]Album, error) {
+func getAlbumsByUser(userID, APIkey string) ([]Album, error) {
 	// Compose request URL
 	modifiedID := strings.Replace(userID, "@", "%40", -1)
-	req := fmt.Sprintf("https://api.flickr.com/services/rest/?method=flickr.photosets.getList&api_key=%s&user_id=%s&format=json&nojsoncallback=1", key, modifiedID)
+	req := fmt.Sprintf("https://api.flickr.com/services/rest/?method=flickr.photosets.getList&api_key=%s&user_id=%s&format=json&nojsoncallback=1", APIkey, modifiedID)
 
 	resp, err := http.Get(req)
 	if err != nil {

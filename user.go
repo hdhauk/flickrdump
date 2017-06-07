@@ -20,10 +20,10 @@ type UserResp struct {
 	Status string `json:"stat"`
 }
 
-func getUserIDByUsername(username string) (string, error) {
+func getUserIDByUsername(username, APIkey string) (string, error) {
 	// Compose API request
 	searchFor := strings.Replace(username, " ", "+", -1)
-	req := fmt.Sprintf("https://api.flickr.com/services/rest/?method=flickr.people.findByUsername&api_key=%s&username=%s&format=json&nojsoncallback=1", key, searchFor)
+	req := fmt.Sprintf("https://api.flickr.com/services/rest/?method=flickr.people.findByUsername&api_key=%s&username=%s&format=json&nojsoncallback=1", APIkey, searchFor)
 
 	resp, err := http.Get(req)
 	if err != nil {

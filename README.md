@@ -8,8 +8,8 @@ go get -u github.com/hdhauk/flickrdump
 ```
 or if you don't have Go installed simply download the correct binary
 * Windows
-  * [64-bit](./bin/flickrdump_windows_amd64)
-  * [32-bit](./bin/flickrdump_windows_386)
+  * [64-bit](./bin/flickrdump_windows_amd64.exe)
+  * [32-bit](./bin/flickrdump_windows_386.exe)
 * [MacOS](./bin/flickrdump_darwin_amd64)
 * Linux
   * [64-bit](./bin/flickrdump_linux_amd64)
@@ -21,5 +21,6 @@ You will also need a Flickr API key [here](https://www.flickr.com/services/api/m
 ```
 flickrdump -key <your-key> -u "Apollo Image Gallery" -n 5
 ```
+or simply: `flickrdump` (/`flickrdump.exe` for windows)
 
 ![](screencap.gif)
