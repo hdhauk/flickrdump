@@ -8,8 +8,8 @@ go get -u github.com/hdhauk/flickrdump
 ```
 or if you don't have Go installed simply download the correct binary
 * Windows
-  * [64-bit](./bin/flickrdump_windows_amd64.exe)
-  * [32-bit](./bin/flickrdump_windows_386.exe)
+  * [64-bit](./bin/flickrdump_windows_amd64)
+  * [32-bit](./bin/flickrdump_windows_386)
 * [MacOS](./bin/flickrdump_darwin_amd64)
 * Linux
   * [64-bit](./bin/flickrdump_linux_amd64)
