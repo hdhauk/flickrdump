@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bufio"
+	"fmt"
 	"os"
 	"path"
 	"strings"
@@ -56,4 +58,22 @@ func sanitize(dirty string) string {
 		clean = strings.Replace(clean, v.Illegal, v.ReplaceWith, -1)
 	}
 	return clean
+}
+
+func getUserArgs() (user, key string, workers int) {
+	reader := bufio.NewReader(os.Stdin)
+
+	fmt.Print("Flickr API key: ")
+	key, _ = reader.ReadString('\n')
+	key = strings.TrimSuffix(key, "\n")
+
+	fmt.Print("Flickr user to download all albums from: ")
+	user, _ = reader.ReadString('\n')
+	user = strings.TrimSuffix(user, "\n")
+
+	fmt.Print("Number of parallell downloads: ")
+	fmt.Scanf("%d", &workers)
+	fmt.Println()
+
+	return
 }

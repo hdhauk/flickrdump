@@ -3,11 +3,15 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
+	"os"
+	"path"
 	"strconv"
 	"sync"
 )
 
+// downloadPhotosAndReport downloads the given photos into the destination folder
 func downloadPhotosAndReport(photos []Photo, dstPath, APIkey string) {
 	// Set up communication
 	total := len(photos) // number of photos in album
@@ -89,4 +93,40 @@ func getPhotoDownloadLink(photoID, APIkey string) (string, error) {
 		}
 	}
 	return "", fmt.Errorf("unable to find original")
+}
+
+func downloadAndSavePhoto(url, filePath, fileName string) (skipped bool, err error) {
+	// Create safe filename with correct suffix.
+	cleanFileName := sanitize(fileName)
+	fileSuffix := path.Ext(url)
+	path := path.Join(filePath, cleanFileName) + fileSuffix
+
+	// Skip if file already exist.
+	if _, err := os.Stat(path); err == nil {
+		return true, nil
+	}
+
+	file, err := os.Create(path)
+	if err != nil {
+		return false, err
+	}
+
+	// Download photo
+	resp, e := http.Get(url)
+	if e != nil {
+		file.Close()
+		os.Remove(path)
+		return false, e
+	}
+	defer resp.Body.Close()
+
+	// Copy photo from response to file.
+	_, err = io.Copy(file, resp.Body)
+	if err != nil {
+		file.Close()
+		os.Remove(path)
+		return false, err
+	}
+	file.Close()
+	return false, nil
 }
