@@ -85,9 +85,14 @@ func getPhotoDownloadLink(photoID, APIkey string) (string, error) {
 		return "", err
 	}
 	defer resp.Body.Close()
-	var sr SizesResp
-	json.NewDecoder(resp.Body).Decode(&sr)
-	for _, s := range sr.Sizes.Versions {
+	var sizeResp struct {
+		Sizes struct {
+			Versions []Size `json:"size"`
+		} `json:"sizes"`
+		Status string `json:"stat"`
+	}
+	json.NewDecoder(resp.Body).Decode(&sizeResp)
+	for _, s := range sizeResp.Sizes.Versions {
 		if s.Label == "Original" {
 			return s.Src, nil
 		}
@@ -98,11 +103,15 @@ func getPhotoDownloadLink(photoID, APIkey string) (string, error) {
 func downloadAndSavePhoto(url, filePath, fileName string) (skipped bool, err error) {
 	// Create safe filename with correct suffix.
 	cleanFileName := sanitize(fileName)
+	maxFileNameLength := 40
+	if len(cleanFileName) > maxFileNameLength {
+		cleanFileName = cleanFileName[:maxFileNameLength]
+	}
 	fileSuffix := path.Ext(url)
 	path := path.Join(filePath, cleanFileName) + fileSuffix
 
 	// Skip if file already exist.
-	if _, err := os.Stat(path); err == nil {
+	if _, e := os.Stat(path); e == nil {
 		return true, nil
 	}
 

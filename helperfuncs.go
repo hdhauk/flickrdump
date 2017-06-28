@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"sort"
 	"strings"
 )
 
@@ -26,6 +27,10 @@ func notAlreadyDownloaded(done, all []Photo) []Photo {
 	for _, p := range photoMap {
 		notDownloaded = append(notDownloaded, p)
 	}
+
+	// Sort photos to avoid duplicate saves if partially downloaded before
+	sort.Sort(PhotoSet(notDownloaded))
+
 	return notDownloaded
 }
 
@@ -51,6 +56,7 @@ func sanitize(dirty string) string {
 		{"|", "-"},
 		{"?", "-"},
 		{"*", "-"},
+		{"\"", "-"},
 	}
 
 	clean := dirty
