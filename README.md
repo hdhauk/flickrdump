@@ -6,7 +6,7 @@
 * Sorts into folder per album
 * Binaries with API key included
 
-![](screencap.gif)
+![](screen.gif)
 
 ### Description
 Basically a script put together in a hurry to dump all the pictures belonging to single Flickr user in the original size. I have done no testing what so ever, and pretty much only made this to dump all the NASA Apollo pictures. All photos in an album is downloaded concurrently so beware it will likely hog your bandwidth if you are using more than 4-5. Default number of concurrent http calls is 4. It also skips already downloaded files so you can resume easily at a later time.
