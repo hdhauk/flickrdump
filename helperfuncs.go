@@ -66,12 +66,8 @@ func sanitize(dirty string) string {
 	return clean
 }
 
-func getUserArgs() (user, key string, workers int) {
+func getUserArgs() (user string, workers int) {
 	reader := bufio.NewReader(os.Stdin)
-
-	fmt.Print("Flickr API key: ")
-	key, _ = reader.ReadString('\n')
-	key = strings.TrimSuffix(key, "\n")
 
 	fmt.Print("Flickr user to download all albums from: ")
 	user, _ = reader.ReadString('\n')

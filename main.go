@@ -7,17 +7,16 @@ import (
 	"os"
 )
 
-var username = ""
-var key = ""
+var username string
+var key string
 var routines = 4
 var mainlogger = log.New(os.Stderr, "[main] ", log.Ltime|log.Lshortfile)
-var outputFolder = ""
+var outputFolder string
 var wantAlbumPhotos = true
 var wantNonAlbumPhotos = true
 
 func main() {
 	// Parse command line arguments.
-	flag.StringVar(&key, "key", "", "API Key")
 	flag.StringVar(&username, "u", "", "username from which the dump is happening")
 	flag.StringVar(&outputFolder, "o", "", "output folder, if not set default to current directory")
 	flag.IntVar(&routines, "n", routines, "number of concurrent downloads")
@@ -25,8 +24,8 @@ func main() {
 	flag.BoolVar(&wantNonAlbumPhotos, "unsorted", wantNonAlbumPhotos, "download photos outside of albums")
 	flag.Parse()
 
-	if username == "" || key == "" {
-		username, key, routines = getUserArgs()
+	if username == "" {
+		username, routines = getUserArgs()
 	}
 
 	userID, err1 := getUserIDByUsername(username, key)

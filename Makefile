@@ -1,8 +1,6 @@
 default:
-	go install .
+	go install -ldflags "-X main.key=$(apikey)" .
 crosscompile:
-	env GOOS=linux GOARCH=amd64 go build -o bin/flickrdump_linux_amd64
-	env GOOS=linux GOARCH=386 go build -o bin/flickrdump_linux_386
-	env GOOS=darwin GOARCH=amd64 go build -o bin/flickrdump_darwin_amd64
-	env GOOS=windows GOARCH=amd64 go build -o bin/flickrdump_windows_amd64.exe
-	env GOOS=windows GOARCH=386 go build -o bin/flickrdump_windows_386.exe
+	env GOOS=linux  go build -o bin/flickrdump_linux -ldflags "-X main.key=$(apikey)"
+	env GOOS=darwin  go build -o bin/flickrdump_darwin -ldflags "-X main.key=$(apikey)"
+	env GOOS=windows  go build -o bin/flickrdump_windows.exe -ldflags "-X main.key=$(apikey)"
