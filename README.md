@@ -28,22 +28,28 @@ You can get your Flickr API key [here](https://www.flickr.com/services/api/misc.
 ### Usage
 ```
 $ flickrdump -h
-Usage of flickrdump:
-  -albums s
-    	download photos in albums (default true)
-  -n int
-    	number of concurrent downloads (default 4)
-  -o string
-    	output folder, if not set default to current directory
-  -u string
-    	username from which the dump is happening
-  -unsorted
-    	download photos outside of albums (default true)
+NAME:
+   flickrdump - Download photos from Flickr, the fast way!
+
+USAGE:
+   flickrdump [global options] command [command options] [arguments...]
+
+COMMANDS:
+     username  The username to download from
+     url       The url of the user to download from
+     help, h   Shows a list of commands or help for one command
+
+GLOBAL OPTIONS:
+   --ignore-albums    Do not download photos that are sorted into albums
+   --ignore-unsorted  Do not download photos that aren't part of any albums
+   --threads value    Number of concurrent downloads (default: 4)
+   --no-download      Only scan user, no files will be downloaded.
+   --help, -h         show help
 ```
 
 ### Examples
 ```
-flickrdump -u "Apollo Image Gallery" -n 5
-flickrdump -u "Official SpaceX Photos" -n 8
+flickrdump -ignore-albums url https://www.flickr.com/photos/spacex
+flickrdump username "Apollo Image Gallery"
 ```
 

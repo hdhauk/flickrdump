@@ -9,10 +9,12 @@ import (
 	"path"
 	"strconv"
 	"sync"
+
+	"github.com/pkg/errors"
 )
 
 // downloadPhotosAndReport downloads the given photos into the destination folder
-func downloadPhotosAndReport(photos []Photo, dstPath, APIkey string) {
+func downloadPhotosAndReport(photos []Photo, dstPath, APIkey string, routines int) {
 	// Set up communication
 	total := len(photos) // number of photos in album
 	var wg sync.WaitGroup
@@ -56,6 +58,7 @@ func downloadPhotosAndReport(photos []Photo, dstPath, APIkey string) {
 				errorCh <- fmt.Errorf("%s > %s", photoID, err)
 				return
 			}
+
 			skipped, err := downloadAndSavePhoto(url, fp, fn)
 			<-sem
 			if skipped {
@@ -82,7 +85,7 @@ func getPhotoDownloadLink(photoID, APIkey string) (string, error) {
 	req := fmt.Sprintf("https://api.flickr.com/services/rest/?method=flickr.photos.getSizes&api_key=%s&photo_id=%s&format=json&nojsoncallback=1", APIkey, photoID)
 	resp, err := http.Get(req)
 	if err != nil {
-		return "", err
+		return "", errors.Wrap(err, "GET request failed")
 	}
 	defer resp.Body.Close()
 	var sizeResp struct {

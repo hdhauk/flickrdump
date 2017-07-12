@@ -1,46 +1,51 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"log"
 	"os"
 )
 
-var username string
+type Option struct {
+	Username       string
+	UserURL        string
+	OutputFolder   string
+	IgnoreUnsorted bool
+	IgnoreAlbums   bool
+	NumRoutines    int
+	NoDownload     bool
+}
+
 var key string
-var routines = 4
 var mainlogger = log.New(os.Stderr, "[main] ", log.Ltime|log.Lshortfile)
-var outputFolder string
-var wantAlbumPhotos = true
-var wantNonAlbumPhotos = true
 
 func main() {
-	// Parse command line arguments.
-	flag.StringVar(&username, "u", "", "username from which the dump is happening")
-	flag.StringVar(&outputFolder, "o", "", "output folder, if not set default to current directory")
-	flag.IntVar(&routines, "n", routines, "number of concurrent downloads")
-	flag.BoolVar(&wantAlbumPhotos, "albums", wantAlbumPhotos, "download photos in albums")
-	flag.BoolVar(&wantNonAlbumPhotos, "unsorted", wantNonAlbumPhotos, "download photos outside of albums")
-	flag.Parse()
+	opts := parseArgs(os.Args)
 
-	if username == "" {
-		username, routines = getUserArgs()
-	}
-
-	userID, err1 := getUserIDByUsername(username, key)
-	if err1 != nil {
-		mainlogger.Fatalf("unable to get user id for user %s: %s\n", username, err1.Error())
+	var userID string
+	if opts.Username == "" && opts.UserURL == "" {
+		os.Exit(0)
+	} else if opts.Username != "" {
+		var err error
+		userID, err = getUserIDByUsername(opts.Username, key)
+		if err != nil {
+			mainlogger.Fatalf("unable to get user-id from username %s: %s\n", opts.Username, err.Error())
+		}
+	} else if opts.UserURL != "" {
+		var err error
+		if userID, err = getUserIDByURL(opts.UserURL, key); err != nil {
+			mainlogger.Fatalln(err)
+		}
 	}
 
 	photosDownloaded := []Photo{} // Keep track of photos that are downloaded
-	albums, err2 := getAlbumsByUser(userID, key)
-	if err2 != nil {
-		mainlogger.Fatalf("unable to get albums : %s\n", err2.Error())
+	albums, err := getAlbumsByUserID(userID, key)
+	if err != nil {
+		mainlogger.Fatalln(err)
 	}
 
-	if outputFolder == "" {
-		outputFolder, _ = os.Getwd()
+	if opts.OutputFolder == "" {
+		opts.OutputFolder, _ = os.Getwd()
 	}
 
 	// Download albums into folders for each album.
@@ -53,22 +58,29 @@ func main() {
 		}
 		photosDownloaded = append(photosDownloaded, albumPhotos...)
 
-		// Download album
-		if wantAlbumPhotos {
-			albumFolder := createFolder(outputFolder, sanitize(album.Title.Content))
-			downloadPhotosAndReport(albumPhotos, albumFolder, key)
+		if opts.NoDownload {
+			fmt.Printf("--> %d photos\n", len(albumPhotos))
+		} else if opts.IgnoreUnsorted == false {
+			albumFolder := createFolder(opts.OutputFolder, sanitize(album.Title.Content))
+			downloadPhotosAndReport(albumPhotos, albumFolder, key, opts.NumRoutines)
 		}
 	}
 
-	if wantNonAlbumPhotos {
+	if opts.IgnoreUnsorted == false {
+		fmt.Println("Inspecting photos not associated with any album")
 		// Download all photos NOT in an album
-		allPhotos, err3 := getAllUserPhotos(userID, key)
-		if err3 != nil {
-			mainlogger.Fatalln(err3)
+		allPhotos, err := getAllUserPhotos(userID, key)
+		if err != nil {
+			mainlogger.Fatalln(err)
 		}
 		remaining := notAlreadyDownloaded(photosDownloaded, allPhotos)
-		path := createFolder(outputFolder, "Misc")
-		downloadPhotosAndReport(remaining, path, key)
-	}
+		path := createFolder(opts.OutputFolder, "Misc")
 
+		if opts.NoDownload {
+			fmt.Printf("--> %d photos found\n", len(remaining))
+
+		} else {
+			downloadPhotosAndReport(remaining, path, key, opts.NumRoutines)
+		}
+	}
 }
