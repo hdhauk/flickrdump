@@ -5,7 +5,6 @@
 * Arbitrarily many parallel downloads
 * Sorts into folder per album
 * Binaries with API key included
-* No external dependencies
 
 ![](screen.gif)
 
@@ -28,28 +27,25 @@ You can get your Flickr API key [here](https://www.flickr.com/services/api/misc.
 ### Usage
 ```
 $ flickrdump -h
-NAME:
-   flickrdump - Download photos from Flickr, the fast way!
-
-USAGE:
-   flickrdump [global options] command [command options] [arguments...]
-
-COMMANDS:
-     username  The username to download from
-     url       The url of the user to download from
-     help, h   Shows a list of commands or help for one command
-
-GLOBAL OPTIONS:
-   --ignore-albums    Do not download photos that are sorted into albums
-   --ignore-unsorted  Do not download photos that aren't part of any albums
-   --threads value    Number of concurrent downloads (default: 4)
-   --no-download      Only scan user, no files will be downloaded.
-   --help, -h         show help
+Usage of flickrdump:
+  -n int
+        Number of concurrent downloads. (default 4)
+  -noalbums
+        Ignore photos that are in one or more albums.
+  -nodownload
+        Only scan photos, skip actual download. Useful to check for number of photos
+  -nounsorted
+        Ignore photos not found in any albums.
+  -out string
+        Destination folder. (default "/Users/halvor/Documents/Go/src/github.com/hdhauk/flickrdump")
+  -url string
+        URL to the profile page of the account to dump from.
+  -user string
+        Username for account to dump from. Note that this is not always what appares on the profile page.
 ```
 
 ### Examples
 ```
-flickrdump -ignore-albums url https://www.flickr.com/photos/spacex
-flickrdump username "Apollo Image Gallery"
+flickrdump -nounsorted -user="Apollo Image Gallery"
+flickrdump -url=https://www.flickr.com/photos/spacex -noalbums -out=$HOME/Pictures/
 ```
-

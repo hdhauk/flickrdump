@@ -1,60 +1,27 @@
 package main
 
 import (
+	"flag"
+	"fmt"
 	"os"
-
-	"github.com/urfave/cli"
 )
 
-func parseArgs(args []string) Option {
-	// Parse command line arguments.
-	opts := Option{}
-	app := cli.NewApp()
-	app.Name = "flickrdump"
-	app.Usage = "Download photos from Flickr, the fast way!"
-	app.HideVersion = true
-	app.Commands = []cli.Command{
-		{
-			Name:  "username",
-			Usage: "The username to download from",
-			Action: func(c *cli.Context) error {
-				opts.Username = c.Args().First()
-				return nil
-			},
-		},
-		{
-			Name:  "url",
-			Usage: "The url of the user to download from",
-			Action: func(c *cli.Context) error {
-				opts.UserURL = c.Args().First()
-				return nil
-			},
-		},
-	}
-	app.Flags = []cli.Flag{
-		cli.BoolFlag{
-			Name:        "ignore-albums",
-			Usage:       "Do not download photos that are sorted into albums",
-			Destination: &opts.IgnoreAlbums,
-		},
-		cli.BoolFlag{
-			Name:        "ignore-unsorted",
-			Usage:       "Do not download photos that aren't part of any albums",
-			Destination: &opts.IgnoreUnsorted,
-		},
-		cli.IntFlag{
-			Name:        "threads",
-			Usage:       "Number of concurrent downloads",
-			Value:       4,
-			Destination: &opts.NumRoutines,
-		},
-		cli.BoolFlag{
-			Name:        "no-download",
-			Usage:       "Only scan user, no files will be downloaded.",
-			Destination: &opts.NoDownload,
-		},
-	}
+func parseArgs() Option {
+	var opts Option
+	flag.StringVar(&opts.Username, "user", "", "Username for account to dump from. Note that this is not always what appares on the profile page.")
+	flag.StringVar(&opts.UserURL, "url", "", "URL to the profile page of the account to dump from.")
+	flag.BoolVar(&opts.IgnoreUnsorted, "nounsorted", false, "Ignore photos not found in any albums.")
+	flag.BoolVar(&opts.IgnoreAlbums, "noalbums", false, "Ignore photos that are in one or more albums.")
+	flag.IntVar(&opts.NumRoutines, "n", 4, "Number of concurrent downloads.")
 
-	app.Run(os.Args)
+	workingDir, err := os.Getwd()
+	if err != nil {
+		fmt.Printf("Unable to get working directory: %s. \n Using root folder (/) instead.", err.Error())
+		workingDir = "/"
+	}
+	flag.StringVar(&opts.OutputFolder, "out", workingDir, "Destination folder.")
+	flag.BoolVar(&opts.NoDownload, "nodownload", false, "Only scan photos, skip actual download. Useful to check for number of photos")
+
+	flag.Parse()
 	return opts
 }
