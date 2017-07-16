@@ -5,7 +5,6 @@
 * Arbitrarily many parallel downloads
 * Sorts into folder per album
 * Binaries with API key included
-* No external dependencies
 
 ![](screen.gif)
 
@@ -29,21 +28,24 @@ You can get your Flickr API key [here](https://www.flickr.com/services/api/misc.
 ```
 $ flickrdump -h
 Usage of flickrdump:
-  -albums s
-    	download photos in albums (default true)
   -n int
-    	number of concurrent downloads (default 4)
-  -o string
-    	output folder, if not set default to current directory
-  -u string
-    	username from which the dump is happening
-  -unsorted
-    	download photos outside of albums (default true)
+        Number of concurrent downloads. (default 4)
+  -noalbums
+        Ignore photos that are in one or more albums.
+  -nodownload
+        Only scan photos, skip actual download. Useful to check for number of photos
+  -nounsorted
+        Ignore photos not found in any albums.
+  -out string
+        Destination folder. (default "/Users/halvor/Documents/Go/src/github.com/hdhauk/flickrdump")
+  -url string
+        URL to the profile page of the account to dump from.
+  -user string
+        Username for account to dump from. Note that this is not always what appares on the profile page.
 ```
 
 ### Examples
 ```
-flickrdump -u "Apollo Image Gallery" -n 5
-flickrdump -u "Official SpaceX Photos" -n 8
+flickrdump -nounsorted -user="Apollo Image Gallery"
+flickrdump -url=https://www.flickr.com/photos/spacex -noalbums -out=$HOME/Pictures/
 ```
-
