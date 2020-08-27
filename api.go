@@ -125,13 +125,38 @@ func getUserIDByUsername(username, APIKey string) (string, error) {
 }
 
 func getPhotosInAlbum(album Album, userID, APIKey string) ([]Photo, error) {
+	// Fetch first page
+	allPhotos, numPages, err := getPhotosInAlbumByPage(1, album, userID, APIKey)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to fetch photos")
+	}
+
+	// Fetch all pages
+	failedPages := 0
+	if numPages > 1 {
+		for page := 2; page <= numPages; page++ {
+			photosInPage, _, e := getPhotosInAlbumByPage(page, album, userID, APIKey)
+			if e != nil {
+				failedPages++
+				continue
+			}
+			allPhotos = append(allPhotos, photosInPage...)
+		}
+	}
+	if failedPages > 0 {
+		return allPhotos, fmt.Errorf("%d pages failed to load", failedPages)
+	}
+	return allPhotos, nil
+}
+
+func getPhotosInAlbumByPage(page int, album Album, userID, APIKey string) ([]Photo, int, error) {
 	modifiedUID := strings.Replace(userID, "@", "%40", -1)
-	apiURL := fmt.Sprintf("%s?method=%s&api_key=%s&photoset_id=%s&user_id=%s&%s", baseURL, getPhotosFromAlbum, APIKey, album.ID, modifiedUID, commonOptions)
+	apiURL := fmt.Sprintf("%s?method=%s&api_key=%s&photoset_id=%s&user_id=%s&page=%d&%s", baseURL, getPhotosFromAlbum, APIKey, album.ID, modifiedUID, page, commonOptions)
 
 	// Fetch list of photos from API
 	resp, err := http.Get(apiURL)
 	if err != nil {
-		return nil, errors.Wrapf(err, "GET request to %s failed", getPhotosFromAlbum)
+		return nil, 0, errors.Wrapf(err, "GET request to %s failed", getPhotosFromAlbum)
 	}
 	defer resp.Body.Close()
 
@@ -140,16 +165,17 @@ func getPhotosInAlbum(album Album, userID, APIKey string) ([]Photo, error) {
 		Set struct {
 			Title  string  `json:"title"`
 			Photos []Photo `json:"photo"`
+			Pages  int     `json:"pages"`
 		} `json:"photoset"`
 		Status string `json:"stat"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&photoSetResp); err != nil {
-		return nil, errors.Wrap(err, "failed to decode json")
+		return nil, 0, errors.Wrap(err, "failed to decode json")
 	}
 	if photoSetResp.Status != "ok" {
-		return nil, fmt.Errorf("api returned bad response: %s", photoSetResp.Status)
+		return nil, 0, fmt.Errorf("api returned bad response: %s", photoSetResp.Status)
 	}
-	return photoSetResp.Set.Photos, nil
+	return photoSetResp.Set.Photos, photoSetResp.Set.Pages, nil
 }
 
 func getAllUserPhotos(userID, APIKey string) ([]Photo, error) {
@@ -161,7 +187,7 @@ func getAllUserPhotos(userID, APIKey string) ([]Photo, error) {
 
 	// Fetch all pages
 	failedPages := 0
-	if numPages < 1 {
+	if numPages > 1 {
 		for page := 2; page <= numPages; page++ {
 			photosInPage, _, e := fetchPhotosByPage(page, userID, APIKey)
 			if e != nil {
